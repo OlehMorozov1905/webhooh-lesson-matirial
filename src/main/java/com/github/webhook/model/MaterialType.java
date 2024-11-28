@@ -1,4 +1,4 @@
-package com.github.webhook;
+package com.github.webhook.model;
 
 public enum MaterialType {
 

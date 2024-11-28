@@ -1,5 +1,7 @@
-package com.github.webhook;
+package com.github.webhook.repository;
 
+import com.github.webhook.model.LessonMaterial;
+import com.github.webhook.model.MaterialType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
