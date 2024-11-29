@@ -26,12 +26,8 @@ public class WebhookUtils {
 
     public static MaterialType getMaterialType(String filePath, boolean isAdded) {
         if (isAdded) {
-            // Если файл добавлен, проверяем его путь
-            if (filePath.toLowerCase().contains("code")) {
-                return MaterialType.CODE; // Тип: код
-            }
-            return MaterialType.SUPPORTING_FILES; // Тип: вспомогательные файлы
+            return filePath.toLowerCase().contains("code") ? MaterialType.CODE : MaterialType.SUPPORTING_FILES;
         }
-        return null; // Для измененных файлов не возвращаем тип
+        return null;
     }
 }

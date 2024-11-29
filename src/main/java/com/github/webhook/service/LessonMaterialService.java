@@ -17,11 +17,16 @@ public class LessonMaterialService {
     }
 
     public LessonMaterial saveLessonMaterial(Long lessonId, String filePath, MaterialType materialType) {
+        LessonMaterial material = createLessonMaterial(lessonId, filePath, materialType);
+        return repository.save(material);
+    }
+
+    private LessonMaterial createLessonMaterial(Long lessonId, String filePath, MaterialType materialType) {
         LessonMaterial material = new LessonMaterial();
         material.setLessonId(lessonId);
         material.setFilePath(filePath);
         material.setMaterialType(materialType);
-        material.setUploadedAt(LocalDateTime.now()); // Устанавливаем текущее время для uploadedAt
-        return repository.save(material);
+        material.setUploadedAt(LocalDateTime.now());
+        return material;
     }
 }
