@@ -4,7 +4,6 @@ import com.github.webhook.model.CommitData;
 import com.github.webhook.model.MaterialType;
 import com.github.webhook.repository.CommitDataRepository;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.github.webhook.util.WebhookUtils;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -59,11 +58,18 @@ public class CommitDataService {
             String filePath = file.asText();
             Long lessonId = getLessonIdForCommit(commitId);
 
-            MaterialType materialType = WebhookUtils.getMaterialType(filePath, isAdded);
+            MaterialType materialType = getMaterialType(filePath, isAdded);
             if (materialType != null) {
                 lessonMaterialService.saveLessonMaterial(lessonId, filePath, materialType);
             }
         });
+    }
+
+    public static MaterialType getMaterialType(String filePath, boolean isAdded) {
+        if (isAdded) {
+            return filePath.toLowerCase().contains("code") ? MaterialType.CODE : MaterialType.SUPPORTING_FILES;
+        }
+        return null;
     }
 
     private Long getLessonIdForCommit(String commitId) {
