@@ -8,7 +8,6 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-
 @Getter
 @Setter
 @AllArgsConstructor
@@ -21,15 +20,22 @@ public class LessonMaterial {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "lesson_id", nullable = false)
-    private Long lessonId;
-
     @Column(name = "file_path", nullable = false)
     private String filePath;
+
+    @Column(name = "file_name", nullable = false)
+    private String fileName; // новое поле для имени файла
+
+    @Column(name = "lesson_id", nullable = false)
+    private Long lessonId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "material_type", nullable = false)
     private MaterialType materialType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "event_type", nullable = false)
+    private EventType eventType; // новое поле для типа события
 
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
