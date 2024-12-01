@@ -5,9 +5,11 @@ import com.github.webhook.model.LessonMaterial;
 import com.github.webhook.model.MaterialType;
 import com.github.webhook.repository.LessonMaterialRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+@Transactional
 @Service
 public class LessonMaterialService {
 

@@ -117,11 +117,26 @@ public class CommitDataService {
     private void saveLessonMaterialsFromFiles(String filePath, String commitId, EventType eventType) {
         Long lessonId = getLessonIdForCommit(commitId);
         MaterialType materialType = getMaterialType(filePath);
+
         if (materialType != null) {
             String fileName = extractFileName(filePath);
+
+            // Если это обновление файла, проверяем, была ли уже добавлена запись с таким файлом
+            if (eventType == EventType.UPDATED) {
+                // Ищем существующую запись с типом ADDED
+                Optional<LessonMaterial> existingAddedMaterial = lessonMaterialRepository.findByFilePathAndFileNameAndEventType(filePath, fileName, EventType.ADDED);
+
+                // Если запись с типом ADDED найдена, удаляем её
+                existingAddedMaterial.ifPresent(lessonMaterial -> {
+                    lessonMaterialRepository.delete(lessonMaterial);  // Удаляем старую запись с типом ADDED
+                });
+            }
+
+            // Сохраняем новую запись с типом UPDATED (если файл был изменен)
             lessonMaterialService.saveLessonMaterial(lessonId, filePath, fileName, materialType, eventType);
         }
     }
+
 
     /**
      * Определяет тип материала файла по пути.
