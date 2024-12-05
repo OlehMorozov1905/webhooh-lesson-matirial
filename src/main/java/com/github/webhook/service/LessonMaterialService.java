@@ -2,40 +2,64 @@ package com.github.webhook.service;
 
 import com.github.webhook.model.EventType;
 import com.github.webhook.model.LessonMaterial;
+import com.github.webhook.model.LessonMaterialUniquePath;
 import com.github.webhook.model.MaterialType;
 import com.github.webhook.repository.LessonMaterialRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
-@Transactional
 @Service
 public class LessonMaterialService {
 
-    private final LessonMaterialRepository repository;
+    @Autowired
+    private LessonMaterialRepository lessonMaterialRepository;
 
-    public LessonMaterialService(LessonMaterialRepository repository) {
-        this.repository = repository;
+    @Autowired
+    private LessonMaterialUniquePathService uniquePathService;
+
+    /**
+     * Получить ID уникального пути или создать новый.
+     */
+    public Long getOrCreateUniquePathId(Long lessonId, String directoryPath) {
+        return uniquePathService.findAllByFilePath(directoryPath).stream()
+                .findFirst()
+                .map(LessonMaterialUniquePath::getId)
+                .orElseGet(() -> uniquePathService.createUniquePath(directoryPath, lessonId).getId());
     }
 
     /**
-     * Сохраняет материал урока с учетом типа события (ADDED, UPDATED, DELETED)
-     * @param lessonId Идентификатор урока
-     * @param filePath Путь к файлу
-     * @param fileName Имя файла
-     * @param materialType Тип материала (CODE или SUPPORTING_FILES)
-     * @param eventType Тип события (ADDED, UPDATED, DELETED)
-     * @return Сохраненный объект LessonMaterial
+     * Сохранить учебный материал с привязкой к уникальному пути.
      */
-    public LessonMaterial saveLessonMaterial(Long lessonId, String filePath, String fileName, MaterialType materialType, EventType eventType) {
-        LessonMaterial material = new LessonMaterial();
-        material.setLessonId(lessonId);
-        material.setFilePath(filePath);
-        material.setFileName(fileName);  // Сохраняем имя файла
-        material.setMaterialType(materialType); // Сохраняем тип материала
-        material.setEventType(eventType); // Сохраняем тип события
-        material.setUploadedAt(LocalDateTime.now());
-        return repository.save(material);
+    public void saveLessonMaterial(Long lessonId, String filePath, String fileName, MaterialType materialType, EventType eventType, LocalDateTime uploadedAt) {
+        String directoryPath = extractDirectoryPath(filePath);
+
+        // Получаем или создаем уникальный путь
+        Long uniquePathId = getOrCreateUniquePathId(lessonId, directoryPath);
+
+        // Подгружаем объект уникального пути
+        LessonMaterialUniquePath uniquePath = uniquePathService.findById(uniquePathId)
+                .orElseThrow(() -> new RuntimeException("Unique path not found for ID: " + uniquePathId));
+
+        // Создаем или обновляем материал
+        LessonMaterial lessonMaterial = new LessonMaterial();
+        lessonMaterial.setEventType(eventType);
+        lessonMaterial.setFileName(fileName);
+        lessonMaterial.setFilePath(filePath);
+        lessonMaterial.setMaterialType(materialType);
+        lessonMaterial.setUploadedAt(uploadedAt);
+        lessonMaterial.setLessonMaterialUniquePath(uniquePath); // Уникальный путь
+        lessonMaterial.setLessonId(lessonId);
+
+        lessonMaterialRepository.save(lessonMaterial);
+    }
+
+    /**
+     * Вспомогательный метод для извлечения директории из пути файла.
+     */
+    private String extractDirectoryPath(String filePath) {
+        int lastSlashIndex = filePath.lastIndexOf('/');
+        return lastSlashIndex == -1 ? "" : filePath.substring(0, lastSlashIndex + 1);
     }
 }

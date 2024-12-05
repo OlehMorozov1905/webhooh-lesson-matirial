@@ -1,5 +1,6 @@
 package com.github.webhook.model;
 
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -24,7 +25,7 @@ public class LessonMaterial {
     private String filePath;
 
     @Column(name = "file_name", nullable = false)
-    private String fileName; // новое поле для имени файла
+    private String fileName;
 
     @Column(name = "lesson_id", nullable = false)
     private Long lessonId;
@@ -35,16 +36,21 @@ public class LessonMaterial {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false)
-    private EventType eventType; // новое поле для типа события
+    private EventType eventType;
 
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
+
+    // Новый внешний ключ
+    @ManyToOne
+    @JoinColumn(name = "lesson_material_unique_path_id")
+    private LessonMaterialUniquePath lessonMaterialUniquePath;
 
     @PrePersist
     @PreUpdate
     private void formatUploadedAt() {
         if (uploadedAt != null) {
-            uploadedAt = uploadedAt.truncatedTo(java.time.temporal.ChronoUnit.SECONDS); // Убираем микросекунды
+            uploadedAt = uploadedAt.truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         }
     }
 }
