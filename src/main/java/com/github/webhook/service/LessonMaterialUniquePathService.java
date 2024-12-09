@@ -3,103 +3,86 @@ package com.github.webhook.service;
 import com.github.webhook.model.LessonMaterialUniquePath;
 import com.github.webhook.repository.LessonMaterialRepository;
 import com.github.webhook.repository.LessonMaterialUniquePathRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class LessonMaterialUniquePathService {
 
-    @Autowired
-    private LessonMaterialUniquePathRepository uniquePathRepository;
+    private static final Logger logger = LoggerFactory.getLogger(LessonMaterialUniquePathService.class);
 
-    @Autowired
-    private LessonMaterialRepository lessonMaterialRepository;
+    private final LessonMaterialUniquePathRepository uniquePathRepository;
+    private final LessonMaterialRepository lessonMaterialRepository;
 
-    public List<LessonMaterialUniquePath> findAllByFilePath(String filePath) {
-        return uniquePathRepository.findAllByFilePaths(List.of(filePath));
+    public LessonMaterialUniquePathService(LessonMaterialUniquePathRepository uniquePathRepository,
+                                           LessonMaterialRepository lessonMaterialRepository) {
+        this.uniquePathRepository = uniquePathRepository;
+        this.lessonMaterialRepository = lessonMaterialRepository;
     }
 
     public Optional<LessonMaterialUniquePath> findById(Long id) {
         return uniquePathRepository.findById(id);
     }
 
-    // Метод для создания уникального пути
+    public Long getOrCreateUniquePathId(Long lessonId, String directoryPath) {
+        return uniquePathRepository.findAllByFilePaths(List.of(directoryPath)).stream()
+                .findFirst()
+                .map(LessonMaterialUniquePath::getId)
+                .orElseGet(() -> createUniquePath(directoryPath, lessonId).getId());
+    }
+
     public LessonMaterialUniquePath createUniquePath(String filePath, Long lessonId) {
         LessonMaterialUniquePath newPath = new LessonMaterialUniquePath();
         newPath.setFilePath(filePath);
-        newPath.setLessonId(lessonId); // Используем реальный lessonId
-        newPath.setLastModifiedAt(java.time.LocalDateTime.now());
+        newPath.setLessonId(lessonId);
+        newPath.setLastModifiedAt(LocalDateTime.now());
         return uniquePathRepository.save(newPath);
     }
 
     /**
-     * Обновить записи для файлов в нескольких путях.
+     * Updates the `lastModifiedAt` timestamp for directories when files are added or updated.
      */
-    public void updateLastModifiedAtForDirectories(List<String> filePaths) {
-
-        // Применяем метод экстракта пути для каждого элемента в filePaths
-        List<String> directories = filePaths.stream()
-                .map(this::extractPathWithoutFile)  // экстрактируем пути без имени файла
-                .collect(Collectors.toList());
-
-        // Находим все записи для указанных директорий
-        List<LessonMaterialUniquePath> uniquePaths = uniquePathRepository.findAllByFilePaths(directories);
-
-        // Обновляем last_modified_at для всех найденных путей
-        uniquePaths.forEach(uniquePath -> uniquePath.setLastModifiedAt(LocalDateTime.now()));
-
-        // Сохраняем обновленные записи
-        uniquePathRepository.saveAll(uniquePaths);
+    public void updateLastModifiedAtForDirectories(List<String> directories) {
+        directories.stream()
+                .distinct()
+                .forEach(directory -> {
+                    Optional<LessonMaterialUniquePath> pathOptional = uniquePathRepository.findByFilePath(directory);
+                    if (pathOptional.isPresent()) {
+                        LessonMaterialUniquePath path = pathOptional.get();
+                        path.setLastModifiedAt(LocalDateTime.now());
+                        uniquePathRepository.save(path);
+                        logger.info("Updated lastModifiedAt for directory: {}", directory);
+                    } else {
+                        logger.warn("Directory not found in unique paths: {}", directory);
+                    }
+                });
     }
 
     /**
-     * Удалить записи для путей, если все файлы из этих путей больше не существуют.
+     * Deletes unique paths if no files exist in the corresponding directories.
+     * Optimized to minimize database queries.
      */
     public void deleteUniquePathsIfNoFilesExist(List<String> filePaths) {
-        System.out.println(filePaths);
+        List<String> distinctDirectories = filePaths.stream()
+                .distinct()
+                .toList();
 
-        // Применяем метод экстракта пути для каждого элемента в filePaths
-        List<String> directories = filePaths.stream()
-                .map(this::extractPathWithoutFile)
-                .collect(Collectors.toList());
-        System.out.println(directories);
+        List<String> nonEmptyDirectories = lessonMaterialRepository.findNonEmptyDirectories(distinctDirectories);
 
-        // Группируем пути (директории) и считаем количество файлов для каждого
-        Map<String, Long> fileCounts = directories.stream()
-                .collect(Collectors.toMap(
-                        path -> path,
-                        path -> lessonMaterialRepository.countByFilePath(path),
-                        (existing, replacement) -> existing // Или (existing, replacement) -> replacement, если хотите заменить
-                ));
+        List<String> emptyDirectories = distinctDirectories.stream()
+                .filter(dir -> !nonEmptyDirectories.contains(dir))
+                .toList();
 
-        // Находим все записи для заданных путей
-        List<LessonMaterialUniquePath> uniquePaths = uniquePathRepository.findAllByFilePaths(directories);
-
-        // Отбираем пути, для которых файлов нет
-        List<LessonMaterialUniquePath> pathsToDelete = uniquePaths.stream()
-                .filter(path -> fileCounts.getOrDefault(path.getFilePath(), 0L) == 0)
-                .collect(Collectors.toList());
-
-        if (pathsToDelete.isEmpty()) {
-            System.out.println("No unique paths to delete.");
-            return;
+        if (!emptyDirectories.isEmpty()) {
+            uniquePathRepository.deleteByFilePaths(emptyDirectories);
+            emptyDirectories.forEach(dir -> logger.info("Deleted unique path: {}", dir));
         }
-
-        // Удаляем записи
-        uniquePathRepository.deleteAll(pathsToDelete);
-    }
-
-    public String extractPathWithoutFile(String filePath) {
-        int lastSlashIndex = filePath.lastIndexOf('/');
-        if (lastSlashIndex == -1) {
-            return filePath; // Если нет слэша, возвращаем сам путь
-        }
-        return filePath.substring(0, lastSlashIndex + 1);
     }
 }
